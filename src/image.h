@@ -1,36 +1,23 @@
 #ifndef IMAGE_H
 #define IMAGE_H
+#include "vec.h"
 #include <string>
-#include "color.h"
 
-typedef unsigned int uint32;
-typedef unsigned char uint8;
-
-class Image
+struct HDRImage
 {
-public:
-	Image(uint32 width, uint32 height);
-	Image(const Image &copy);
-	Image operator=(const Image &rhs);
-	~Image();
-
-	int save(const std::string &filename);
-	bool load(const std::string &filename);
-
-	void setColor(uint32 x, uint32 y, uint8 r, uint8 g, uint8 b);
-	void setColor(uint32 x, uint32 y, const Color &color);
-	void setColor(uint32 x, uint32 y, const Colorf &color);
-	void clear(uint8 r, uint8 g, uint8 b);
-
-	uint32 getWidth() const { return width; }
-	uint32 getHeight() const { return height; }
-	Color getColor(uint32 x, uint32 y) const;
-	Colorf getColorf(uint32 x, uint32 y) const;
-
-	uint8 *getData() { return data; }
-private:
-	uint8 *data;
-	uint32 width, height;
+	HDRImage() : width(0), height(0), pixels(nullptr) { }
+	HDRImage(int width_, int height_) : width(width_), height(height_) { pixels = new vec3[width_ * height_]; }
+	~HDRImage() { if(pixels != nullptr) delete[] pixels; }
+	void clear(const vec3 &c) { for(int i = 0; i < width * height; ++i) pixels[i] = c; }
+	vec3 getPixel(int x, int y) const { return pixels[y * width + x]; }
+	void setPixel(int x, int y, const vec3 &pixel) { pixels[y * width + x] = pixel; }
+	vec3 *pixels;
+	int width;
+	int height;
 };
+
+bool savePng(const char *filename, const HDRImage &img);
+
+bool loadPng(const char *filename, HDRImage &img);
 
 #endif
