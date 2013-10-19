@@ -40,15 +40,15 @@ float logAverageLuminance(const HDRImage &img)
 void applyTonemap(HDRImage &img)
 {
 	const float exposure = 0.3f; // Key (image specific)
-	const float white = 64.0f; // The smallest luminance that will be mapped to pure white
+	const float white = 128.0f; // The smallest luminance that will be mapped to pure white
 
 	float lumAvg = logAverageLuminance(img);
 
 	const uint32 width = img.width;
 	const uint32 height = img.height;
-	for(uint32 y = 0; y < width; ++y)
+	for(uint32 y = 0; y < height; ++y)
 	{
-		for(uint32 x = 0; x < height; ++x)
+		for(uint32 x = 0; x < width; ++x)
 		{
 			vec3 pixel = img.getPixel(x, y);
 			float R = pixel.x;
@@ -75,15 +75,15 @@ void applyTonemap(HDRImage &img)
 	}
 }
 
-void trace(const HDRImage &texture, const HDRImage &collision, HDRImage &lightbuffer, const vec3 &photonColor, 
-const vec2 &ro, const vec2 &d, int bounces = 0)
+void trace(const HDRImage &texture, const HDRImage &collision, HDRImage &lightbuffer, 
+const vec3 &photonColor, const vec2 &ro, const vec2 &d, int bounces = 0)
 {
 	if(bounces > 4)
 		return;
 
 	float t = 0.0f;
 	float dt = 2.0f;
-	const int steps = 128;
+	const int steps = 256;
 	for(int i = 0; i < steps; ++i)
 	{
 		vec2 p = ro + d * t;
@@ -92,7 +92,7 @@ const vec2 &ro, const vec2 &d, int bounces = 0)
 		int xi = int(p.x);
 		int yi = int(p.y);
 		if(xi < 0 || xi >= collision.width || yi < 0 || yi >= collision.height)
-			return;
+			continue;
 
 		// Add photon color to lightbuffer
 		lightbuffer.setPixel(xi, yi, photonColor + lightbuffer.getPixel(xi, yi));
@@ -110,14 +110,13 @@ const vec2 &ro, const vec2 &d, int bounces = 0)
 	}
 }
 
-void simulate(const HDRImage &texture, const HDRImage &collision, HDRImage &lightbuffer)
+void simulate(const HDRImage &texture, const HDRImage &collision, HDRImage &lightbuffer, 
+int photoncount, const vec3 &light)
 {
-	const uint32 photoncount = 1000000;
-	vec3 light(1.0f, 1.0f, 1.0f);
-
 	for(uint32 i = 0; i < photoncount; ++i)
 	{
-		vec2 ro = vec2(40.0f, 40.0f) + vec2(frand(), frand()) * 4.0f;
+		// Emit photons in a circular distribution, with a slight random offset
+		vec2 ro = vec2(270.0f, 20.0f) + vec2(frand(), frand()) * 4.0f;
 		vec2 dir = vec2(frand(), frand());
 		trace(texture, collision, lightbuffer, light, ro, dir);
 	}
@@ -128,16 +127,22 @@ int main(int argc, char *argv[])
 	HDRImage texture;
 	HDRImage collision;
 	std::cout<<"Loading images...";
-	loadPng("data/texture.png", texture);
-	loadPng("data/collision.png", collision);
-	std::cout<<"done!\n";
+	if(!loadPng("data/mariotexture.png", texture) ||
+	   !loadPng("data/mariocollision.png", collision))
+	{
+		std::cerr<<"failed :("<<std::endl;
+		return -1;
+	}
+	std::cout<<"done!"<<std::endl;
+
+	// Create a lightbuffer and add an ambient light
+	HDRImage lightbuffer(texture.width, texture.height);
+	lightbuffer.clear(vec3(32.0f));
 
 	// Simulate photon distribution into a lightbuffer
-	HDRImage lightbuffer(texture.width, texture.height);
-	lightbuffer.clear(vec3(64.0f));
-	simulate(texture, collision, lightbuffer);
-
-	//applyTonemap(lightbuffer);
+	int photonCount = 1000000;
+	vec3 lightColor = vec3(1.0f, 0.9f, 0.9f);
+	simulate(texture, collision, lightbuffer, photonCount, lightColor);
 
 	// Multiplicatively blend texture with lightbuffer
 	HDRImage result(texture.width, texture.height);
@@ -149,6 +154,7 @@ int main(int argc, char *argv[])
 	}
 
 	applyTonemap(result);
+	//applyTonemap(lightbuffer);
 
 	std::cout<<"Saving image...";
 	savePng("data/texturepp.png", result);
